@@ -34,6 +34,10 @@ pub mod SocialAccount {
     };
     use starknet::account::Call;
     use starknet::{get_caller_address, get_contract_address, get_tx_info, ContractAddress};
+    use starknet::storage::{
+        StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        StoragePointerWriteAccess
+    };
     use super::ISRC6;
 
     use super::super::request::{
@@ -46,19 +50,19 @@ pub mod SocialAccount {
     struct Storage {
         #[key]
         public_key: u256,
-        transfers: LegacyMap<u256, bool>,
+        transfers: starknet::storage::Map<u256, bool>,
     }
 
     #[event]
     #[derive(Drop, starknet::Event)]
-    enum Event {
+    pub enum Event {
         AccountCreated: AccountCreated,
     }
 
     #[derive(Drop, starknet::Event)]
-    struct AccountCreated {
+    pub struct AccountCreated {
         #[key]
-        public_key: u256
+        pub public_key: u256
     }
 
     #[constructor]
@@ -159,56 +163,51 @@ mod tests {
     use core::traits::Into;
     use joyboy::erc20::{ERC20, IERC20Dispatcher, IERC20DispatcherTrait};
     use snforge_std::{
-        declare, ContractClass, ContractClassTrait, spy_events, SpyOn, EventSpy, EventFetcher,
-        Event, EventAssertions, cheat_transaction_hash_global, cheat_signature_global,
+        ContractClass, ContractClassTrait, spy_events, EventSpy, EventSpyTrait,
+        Event, EventSpyAssertionsTrait, start_cheat_transaction_hash_global, start_cheat_signature_global,
         stop_cheat_transaction_hash_global, stop_cheat_signature_global
     };
     use starknet::{
         ContractAddress, get_caller_address, get_contract_address, contract_address_const
     };
     use super::super::profile::NostrProfile;
-
+    use super::SocialAccount;
     use super::super::request::{SocialRequest, Signature, Encode};
     use super::super::transfer::Transfer;
     use super::{
         ISocialAccountDispatcher, ISocialAccountDispatcherTrait, ISocialAccountSafeDispatcher,
         ISocialAccountSafeDispatcherTrait
     };
+    use super::super::utils::tests::declare_contract;
 
     use super::{ISRC6Dispatcher, ISRC6DispatcherTrait};
 
     fn declare_account() -> ContractClass {
-        declare("SocialAccount").unwrap()
+        declare_contract("SocialAccount")
     }
 
     fn declare_erc20() -> ContractClass {
-        declare("ERC20").unwrap()
+        declare_contract("ERC20")
     }
 
     fn deploy_account(class: ContractClass, public_key: u256) -> ISocialAccountDispatcher {
         let mut calldata = array![];
         public_key.serialize(ref calldata);
 
-        let address = class.precalculate_address(@calldata);
-
-        let mut spy = spy_events(SpyOn::One(address));
+        let mut spy = spy_events();
 
         let (contract_address, _) = class.deploy(@calldata).unwrap();
 
-        spy.fetch_events();
+        assert(spy.get_events().events.len() == 1, 'there should be one event');
 
-        assert(spy.events.len() == 1, 'there should be one event');
-
-        // TODO: deserialize event instead of manual decoding
-        let (_, event) = spy.events.at(0);
-        assert(event.keys.at(0) == @selector!("AccountCreated"), 'wrong event name');
-
-        let event_key = u256 {
-            low: (*event.keys.at(1)).try_into().unwrap(),
-            high: (*event.keys.at(2)).try_into().unwrap()
-        };
-
-        assert(event_key == public_key, 'wrong public key');
+        spy.assert_emitted(@array![
+            (
+                contract_address,
+                SocialAccount::Event::AccountCreated(
+                    SocialAccount::AccountCreated { public_key }
+                )
+            )
+        ]);
 
         ISocialAccountDispatcher { contract_address }
     }
@@ -426,13 +425,13 @@ mod tests {
         r.serialize(ref signature);
         s.serialize(ref signature);
 
-        cheat_transaction_hash_global(hash);
-        cheat_signature_global(signature.span());
+        start_cheat_transaction_hash_global(hash);
+        start_cheat_signature_global(signature.span());
 
         assert!(account.__validate__(Default::default()) == starknet::VALIDATED);
 
         let invalid_hash = 0x5a8885a308d313198a2e03707344a4093822299f31d0082efa98ec4e6c89;
-        cheat_transaction_hash_global(invalid_hash);
+        start_cheat_transaction_hash_global(invalid_hash);
 
         assert!(account.__validate__(Default::default()) != starknet::VALIDATED);
 

@@ -1,8 +1,8 @@
 use core::fmt::Display;
+use core::sha256::compute_sha256_byte_array;
 use core::to_byte_array::FormatAsByteArray;
 use core::traits::Into;
 use joyboy::bip340;
-use joyboy::utils::{compute_sha256_byte_array};
 
 const TWO_POW_32: u128 = 0x100000000;
 const TWO_POW_64: u128 = 0x10000000000000000;

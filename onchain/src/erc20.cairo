@@ -25,6 +25,10 @@ pub mod ERC20 {
     use starknet::ContractAddress;
     use starknet::contract_address_const;
     use starknet::get_caller_address;
+    use starknet::storage::{
+        StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        StoragePointerWriteAccess
+    };
 
     #[storage]
     struct Storage {
@@ -32,8 +36,8 @@ pub mod ERC20 {
         symbol: felt252,
         decimals: u8,
         total_supply: u256,
-        balances: LegacyMap::<ContractAddress, u256>,
-        allowances: LegacyMap::<(ContractAddress, ContractAddress), u256>,
+        balances: starknet::storage::Map::<ContractAddress, u256>,
+        allowances: starknet::storage::Map::<(ContractAddress, ContractAddress), u256>,
     }
 
     #[event]

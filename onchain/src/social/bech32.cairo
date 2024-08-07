@@ -1,8 +1,7 @@
 use core::array::ArrayTrait;
 use core::byte_array::ByteArrayTrait;
 use core::cmp::min;
-// TODO: uncomment once Cairo 2.7 is available
-// use core::array::ToSpanTrait;
+use core::array::ToSpanTrait;
 use core::option::OptionTrait;
 use core::to_byte_array::FormatAsByteArray;
 //! bech32 encoding implementation
