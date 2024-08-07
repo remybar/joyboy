@@ -68,6 +68,10 @@ pub mod DepositEscrow {
     use starknet::{
         get_block_timestamp, get_caller_address, get_contract_address, get_tx_info, ContractAddress
     };
+    use starknet::storage::{
+        StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        StoragePointerWriteAccess
+    };
     use super::super::request::{
         SocialRequest, SocialRequestImpl, SocialRequestTrait, Encode, Signature
     };
@@ -90,8 +94,8 @@ pub mod DepositEscrow {
     #[storage]
     struct Storage {
         next_deposit_id: DepositId,
-        deposits: LegacyMap<DepositId, Deposit>,
-        nostr_to_sn: LegacyMap<NostrPublicKey, ContractAddress>
+        deposits: starknet::storage::Map<DepositId, Deposit>,
+        nostr_to_sn: starknet::storage::Map<NostrPublicKey, ContractAddress>
     }
 
     #[derive(Drop, starknet::Event)]
@@ -292,8 +296,8 @@ mod tests {
 
     use joyboy::erc20::{ERC20, IERC20Dispatcher, IERC20DispatcherTrait};
     use snforge_std::{
-        declare, ContractClass, ContractClassTrait, spy_events, SpyOn, EventSpy, EventFetcher,
-        Event, EventAssertions, start_cheat_caller_address, cheat_caller_address_global,
+        declare, ContractClass, ContractClassTrait, spy_events, EventSpy, 
+        Event, start_cheat_caller_address, start_cheat_caller_address_global,
         stop_cheat_caller_address_global, start_cheat_block_timestamp,
     };
     use starknet::{
@@ -405,7 +409,7 @@ mod tests {
         let recipient_address: ContractAddress = 678.try_into().unwrap();
         let amount = 100_u256;
 
-        cheat_caller_address_global(sender_address);
+        start_cheat_caller_address_global(sender_address);
         erc20.approve(escrow.contract_address, amount);
         stop_cheat_caller_address_global();
 
@@ -468,7 +472,7 @@ mod tests {
             ..request
         };
 
-        cheat_caller_address_global(sender_address);
+        start_cheat_caller_address_global(sender_address);
         erc20.approve(escrow.contract_address, amount);
         stop_cheat_caller_address_global();
 
@@ -522,7 +526,7 @@ mod tests {
 
         let amount = 100_u256;
 
-        cheat_caller_address_global(sender_address);
+        start_cheat_caller_address_global(sender_address);
         erc20.approve(escrow.contract_address, amount);
         stop_cheat_caller_address_global();
 
@@ -540,7 +544,7 @@ mod tests {
 
         let amount = 100_u256;
 
-        cheat_caller_address_global(sender_address);
+        start_cheat_caller_address_global(sender_address);
         erc20.approve(escrow.contract_address, amount);
         stop_cheat_caller_address_global();
 
@@ -568,7 +572,7 @@ mod tests {
         let recipient_address: ContractAddress = 789.try_into().unwrap();
         let amount = 100_u256;
 
-        cheat_caller_address_global(sender_address);
+        start_cheat_caller_address_global(sender_address);
         erc20.approve(escrow.contract_address, amount);
         stop_cheat_caller_address_global();
 
@@ -593,7 +597,7 @@ mod tests {
 
         let amount = 100_u256;
 
-        cheat_caller_address_global(sender_address);
+        start_cheat_caller_address_global(sender_address);
         erc20.approve(escrow.contract_address, amount);
         stop_cheat_caller_address_global();
 
@@ -615,7 +619,7 @@ mod tests {
 
         let amount = 100_u256;
 
-        cheat_caller_address_global(sender_address);
+        start_cheat_caller_address_global(sender_address);
         erc20.approve(escrow.contract_address, amount);
         stop_cheat_caller_address_global();
 
@@ -634,7 +638,7 @@ mod tests {
 
         let amount = 100_u256;
 
-        cheat_caller_address_global(sender_address);
+        start_cheat_caller_address_global(sender_address);
         erc20.approve(escrow.contract_address, amount);
         stop_cheat_caller_address_global();
 
@@ -657,7 +661,7 @@ mod tests {
 
         let amount = 100_u256;
 
-        cheat_caller_address_global(sender_address);
+        start_cheat_caller_address_global(sender_address);
         erc20.approve(escrow.contract_address, amount);
         stop_cheat_caller_address_global();
 
@@ -676,7 +680,7 @@ mod tests {
         let recipient_address: ContractAddress = 345.try_into().unwrap();
         let amount = 100_u256;
 
-        cheat_caller_address_global(sender_address);
+        start_cheat_caller_address_global(sender_address);
         erc20.approve(escrow.contract_address, amount);
         stop_cheat_caller_address_global();
 

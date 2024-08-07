@@ -3,13 +3,12 @@
 use core::byte_array::ByteArrayTrait;
 use core::option::OptionTrait;
 use core::result::ResultTrait;
-// TODO: uncomment once Cairo 2.7 is available
-// use core::sha256::compute_sha256_byte_array;
+use core::sha256::compute_sha256_byte_array;
 use core::starknet::SyscallResultTrait;
 use core::to_byte_array::{AppendFormattedToByteArray, FormatAsByteArray};
 use core::traits::Into;
 
-use joyboy::utils::{shl, shr, compute_sha256_byte_array};
+use joyboy::utils::{shl, shr};
 use starknet::{secp256k1::{Secp256k1Point}, secp256_trait::{Secp256Trait, Secp256PointTrait}};
 
 const TWO_POW_32: u128 = 0x100000000;
