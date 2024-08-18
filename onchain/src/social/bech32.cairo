@@ -1,13 +1,4 @@
-use core::array::ArrayTrait;
-use core::byte_array::ByteArrayTrait;
 use core::cmp::min;
-use core::array::ToSpanTrait;
-use core::option::OptionTrait;
-use core::to_byte_array::FormatAsByteArray;
-//! bech32 encoding implementation
-
-use core::traits::{Into, TryInto};
-
 use joyboy::utils::{shl, shr};
 
 //! bech32 encoding implementation
@@ -16,70 +7,58 @@ use joyboy::utils::{shl, shr};
 //! https://github.com/sipa/bech32/blob/master/ref/javascript/bech32.js#L86
 //! https://github.com/paulmillr/scure-base/blob/main/index.ts#L479
 
-// const GENERATOR: [
-//     felt252
-//     ; 5] = [
-//     1, 2, 3, 4
-//     ];
 
-fn polymod(values: Array<u8>) -> u32 {
-    let generator = array![
-        0x3b6a57b2_u32, 0x26508e6d_u32, 0x1ea119fa_u32, 0x3d4233dd_u32, 0x2a1462b3_u32
-    ];
-    let generator = generator.span();
+const alphabet: [u8; 32] = [
+    'q', 'p', 'z', 'r', 'y', '9', 'x', '8',
+    'g', 'f', '2', 't', 'v', 'd', 'w', '0', 
+    's', '3', 'j', 'n', '5', '4', 'k', 'h',
+    'c', 'e', '6', 'm', 'u', 'a', '7', 'l'
+];
 
-    let mut chk = 1_u32;
+#[inline(always)]
+fn polymod(ref chk: u32, value: u8) {
+    let top = chk;
+    chk = shl((chk & 0x1ffffff_u32), 5) ^ value.into();
 
-    let len = values.len();
-    let mut p: usize = 0;
-    while p != len {
-        let top = shr(chk, 25);
-        chk = shl((chk & 0x1ffffff_u32), 5) ^ (*values.at(p)).into();
-        let mut i = 0_usize;
-        while i != 5 {
-            if shr(top, i) & 1_u32 != 0 {
-                chk = chk ^ *generator.at(i.into());
-            }
-            i += 1;
-        };
-        p += 1;
-    };
-
-    chk
+    if top & 33554432_u32 != 0 {        // bit 25
+        chk = chk ^ 0x3b6a57b2_u32;
+    }
+    if top & 67108864_u32 != 0 {        // bit 26
+        chk = chk ^ 0x26508e6d_u32;
+    }
+    if top & 134217728_u32 != 0 {       // bit 27
+        chk = chk ^ 0x1ea119fa_u32;
+    }
+    if top & 268435456_u32 != 0 {       // bit 28
+        chk = chk ^ 0x3d4233dd_u32;
+    }
+    if top & 536870912_u32 != 0 {       // bit 29
+        chk = chk ^ 0x2a1462b3_u32;
+    }
 }
 
-fn hrp_expand(hrp: @Array<u8>) -> Array<u8> {
+fn convert_bytearray_to_bytes(data: @ByteArray) -> Array<u8> {
     let mut r: Array<u8> = ArrayTrait::new();
-
-    let len = hrp.len();
+    let len = data.len();
     let mut i = 0;
     while i != len {
-        r.append(shr(*hrp.at(i), 5));
+        r.append(data[i]);
         i += 1;
     };
-    r.append(0);
-
-    let len = hrp.len();
-    let mut i = 0;
-    while i != len {
-        r.append(*hrp.at(i) & 31);
-        i += 1;
-    };
-
     r
 }
 
-fn convert_bytes_to_5bit_chunks(bytes: @Array<u8>) -> Array<u8> {
+fn convert_bytearray_to_5bit_chunks(data: @ByteArray) -> Array<u8> {
     let mut r = ArrayTrait::new();
 
-    let len = bytes.len();
+    let len = data.len();
     let mut i = 0;
 
     let mut acc = 0_u8;
     let mut missing_bits = 5_u8;
 
     while i != len {
-        let mut byte: u8 = *bytes.at(i);
+        let mut byte: u8 = data[i];
         let mut bits_left = 8_u8;
         loop {
             let chunk_size = min(missing_bits, bits_left);
@@ -104,61 +83,58 @@ fn convert_bytes_to_5bit_chunks(bytes: @Array<u8>) -> Array<u8> {
     r
 }
 
-impl ByteArrayTraitIntoArray of Into<@ByteArray, Array<u8>> {
-    fn into(self: @ByteArray) -> Array<u8> {
-        let mut r = ArrayTrait::new();
-        let len = self.len();
-        let mut i = 0;
-        while i != len {
-            r.append(self.at(i).unwrap());
-            i += 1;
-        };
-        r
-    }
-}
+fn checksum(hrp: Array<u8>, data: @Array<u8>) -> Array<u32> {
+    let mut chk = 1_u32;
 
-fn checksum(hrp: @ByteArray, data: @Array<u8>) -> Array<u8> {
-    let mut values = ArrayTrait::new();
+    for x in hrp.span() {
+        polymod(ref chk, shr(*x, 5));
+    };
+    polymod(ref chk, 0);
+    for x in hrp {
+        polymod(ref chk, x & 31);
+    };
 
-    values.append_span(hrp_expand(@hrp.into()).span());
-    values.append_span(data.span());
-    let the_data: Array<u8> = array![0, 0, 0, 0, 0, 0];
-    values.append_span(the_data.span());
+    for x in data.span() {
+        polymod(ref chk, *x);
+    };
 
-    let m = polymod(values) ^ 1;
+    polymod(ref chk, 0);
+    polymod(ref chk, 0);
+    polymod(ref chk, 0);
+    polymod(ref chk, 0);
+    polymod(ref chk, 0);
+    polymod(ref chk, 0);
+    
+    chk = chk ^ 1;
 
     let mut r = ArrayTrait::new();
-    r.append((shr(m, 25) & 31).try_into().unwrap());
-    r.append((shr(m, 20) & 31).try_into().unwrap());
-    r.append((shr(m, 15) & 31).try_into().unwrap());
-    r.append((shr(m, 10) & 31).try_into().unwrap());
-    r.append((shr(m, 5) & 31).try_into().unwrap());
-    r.append((m & 31).try_into().unwrap());
+    r.append(shr(chk, 25) & 31);
+    r.append(shr(chk, 20) & 31);
+    r.append(shr(chk, 15) & 31);
+    r.append(shr(chk, 10) & 31);
+    r.append(shr(chk, 5) & 31);
+    r.append(chk & 31);
 
     r
 }
 
 pub fn encode(hrp: @ByteArray, data: @ByteArray, limit: usize) -> ByteArray {
-    // change into an array and a const
-    let alphabet: ByteArray = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+    let alphabet = alphabet.span();
+    let data_5bits = convert_bytearray_to_5bit_chunks(data);
+    let hrp_bytes = convert_bytearray_to_bytes(hrp);
 
-    let data_5bits = convert_bytes_to_5bit_chunks(@data.into());
+    let cs = checksum(hrp_bytes, @data_5bits);
 
-    let cs = checksum(hrp, @data_5bits);
-
-    let mut combined = ArrayTrait::new();
-    combined.append_span(data_5bits.span());
-    combined.append_span(cs.span());
-
-    let mut encoded: ByteArray = Default::default();
-    let mut i = 0;
-    let len = combined.len();
-    while i != len {
-        encoded.append_byte(alphabet.at((*combined.at(i)).into()).unwrap());
-        i += 1;
+    let mut encoded: ByteArray = hrp.clone();
+    encoded.append_byte('1');    
+    for x in data_5bits {
+        encoded.append_byte(*alphabet[x.into()]);
+    };
+    for x in cs {
+        encoded.append_byte(*alphabet[x]);
     };
 
-    format!("{hrp}1{encoded}")
+    encoded
 }
 
 #[cfg(test)]
